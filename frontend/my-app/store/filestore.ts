@@ -19,7 +19,7 @@ export const useFileStore = create<fileContentStore>((set) => ({
 
 export const useSocketStore = create<socketStore>((set) =>  ({
     socketInstance: null, 
-    setSocket: ((newSocketInstance) => 
+    setSocket: ((newSocketInstance) =>  
     set({socketInstance: newSocketInstance}))
 
 }))
