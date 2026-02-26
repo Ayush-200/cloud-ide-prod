@@ -4,6 +4,7 @@ import { registerTarget } from "../utils/aws-controller/registerTask.js";
 import type { sessionRequestType, sessionStopRequest }  from "../types/types.js";
 import { stopUserTask } from "../utils/aws-controller/stopTask.js";
 import { deregisterTarget } from "../utils/aws-controller/deregisterTask.js";
+import { nanoid } from "nanoid";
 
 export async function startSession(req: Request<{}, {}, sessionRequestType>, res: Response) {
   try {
@@ -13,13 +14,17 @@ export async function startSession(req: Request<{}, {}, sessionRequestType>, res
         console.error("user does not exist");
     }
 
-    const { taskArn, privateIp } = await startAndPrepareTask(userId);
+    const sessionId = "12345"
+
+    const { taskArn, privateIp } = await startAndPrepareTask(userId, sessionId);
 
     await registerTarget(privateIp);
 
     return res.json({
       success: true,
-      taskArn
+      taskArn: taskArn,
+      privateIp: privateIp, 
+      sessionId: sessionId
     });
 
   } catch (err) {
@@ -46,17 +51,17 @@ export async function endUserSession(
 
   try {
    
-    await deregisterTarget( process.env.TARGET_GROUP_ARN!, privateIp);
+    await deregisterTarget( process.env.NEXT_PUBLIC_TARGET_GROUP_ARN!, privateIp);
 
     const stopResponse = await stopUserTask(taskArn);
 
-    return {
+    return res.json({
       success: true,
       stopResponse
-    };
-
+    });
+    
   } catch (error) {
     console.error("Failed to end session:", error);
-    throw error;
+    return res.status(500).json({ error: "Failed to end session" });
   }
 }

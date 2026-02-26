@@ -18,18 +18,18 @@ export async function registerTarget(
 
   try{
   const command = new RegisterTargetsCommand({
-    TargetGroupArn: process.env.TARGET_GROUP_ARN!, 
+    TargetGroupArn: process.env.NEXT_PUBLIC_TARGET_GROUP_ARN!, 
     Targets: [
       {
         Id: taskPrivateIp,
-        Port: 3001
+        Port: 8080
       }
     ]
   });
 
   await elb.send(command);
 }catch(err){
-    console.log("error occured in register target");
+    console.log("error occured in register target", err);
 }
 
   

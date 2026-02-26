@@ -1,29 +1,54 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { CLIENT_RENEG_LIMIT } from 'tls';
+import type { Request, Response } from 'express';
+import type { getFolderStructureRequest, getFolderStructureResponse, FileNode } from '../types.js';
 
-export const getFolderStructure = async (req:string) => {
-    const dir = 'C:\\Users\\DELL\\Desktop\\cloud-ide\\aws-backend\\src';
-    const folderStructure = await fs.readdir(dir, { withFileTypes: true});
-
-    const structure = folderStructure.map((element) =>  {
-        const name = element.name;
-        const fullPath = path.join(dir, element.name);
-        const type = element.isDirectory() ? 'folder' : 'file'; 
+export const getFolderStructure = async (
+    req: Request<{}, {}, getFolderStructureRequest>, 
+    res: Response
+) => {
+    try {
+        const { path: dirPath } = req.body;
         
-        return { name, type, path: fullPath };
-    })
+        if (!dirPath) {
+            return res.status(400).json({ error: 'path is required' });
+        }
 
-    console.log(structure);
+        const folderStructure = await fs.readdir(dirPath, { withFileTypes: true });
 
-}
+        const structure: FileNode[] = folderStructure.map((element) => {
+            const name = element.name;
+            const fullPath = path.join(dirPath, element.name);
+            const isDirectory = element.isDirectory();
+            
+            return {
+                id: fullPath,
+                name,
+                path: fullPath,
+                isDirectory,
+                children: isDirectory ? [] : undefined
+            };
+        });
 
-export const getfileData = async (req: {path:string}) => { 
-    const content = await fs.readFile(req.path, 'utf-8');
-    // console.log(content);
-    return content;
+        return res.json(structure);
+    } catch (error) {
+        console.error('Error reading folder structure:', error);
+        return res.status(500).json({ error: 'Failed to read folder structure' });
+    }
+};
 
+export const getfileData = async (req: Request<{}, {}, { path: string }>, res: Response) => {
+    try {
+        const { path: filePath } = req.body;
+        
+        if (!filePath) {
+            return res.status(400).json({ error: 'path is required' });
+        }
 
-}
-// getFolderStructure('');
-getfileData({path: 'C:\\Users\\DELL\\Desktop\\cloud-ide\\aws-backend\\new.txt'});
+        const content = await fs.readFile(filePath, 'utf-8');
+        return res.json(content);
+    } catch (error) {
+        console.error('Error reading file:', error);
+        return res.status(500).json({ error: 'Failed to read file' });
+    }
+};

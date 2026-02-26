@@ -13,7 +13,7 @@ const FolderPane = () => {
   useEffect(() =>  {
     const fetchData = async () =>  {
       try{
-        const res = await axios.post(`${process.env.APP_URL}/getFolderStructure`, {path: '/'});
+        const res = await axios.post<FileNode[]>(`${process.env.NEXT_PUBLIC_APP_URL}/getFolderStructure`, {path: '/'});
         setData(res.data);
       }catch(err){
         console.log("error in first load of folder structure", err);
@@ -23,16 +23,16 @@ const FolderPane = () => {
 
     fetchData();
   }, []);
-  const insertChildren = (targetPath: string, NewChildren: FileNode[]): FileNode[] =>  {
-
-    return data.map((node: FileNode) => {
+  
+  const insertChildren = (targetPath: string, nodes: FileNode[], NewChildren: FileNode[]): FileNode[] =>  {
+    return nodes.map((node: FileNode) => {
       if(node.path === targetPath){
         return {...node, children: NewChildren}
       }
-      if(node.children ){
+      if(node.children && node.children.length > 0){
         return { 
           ...node, 
-          children: insertChildren(targetPath, NewChildren)}
+          children: insertChildren(targetPath, node.children, NewChildren)}
       }
       return node;
     })
@@ -47,7 +47,7 @@ const FolderPane = () => {
         const node = nodeApi.data;
         if(!node.isDirectory){
           try{
-            const res = await axios.post(`${process.env.APP_URL}/getfileData`, {path: node.path});
+            const res = await axios.post<string>(`${process.env.NEXT_PUBLIC_APP_URL}/getfileData`, {path: node.path});
             const code = res.data;
             setFileContent(code);
             return;
@@ -61,8 +61,8 @@ const FolderPane = () => {
         }
         // setSelectedNode(node);
         if(node.isDirectory){
-          const folderStructure = await axios.post(`${process.env.APP_URL}/getFolderStructure`, {path: node.path});
-          const updatedDate = insertChildren(node.path, folderStructure.data);
+          const folderStructure = await axios.post<FileNode[]>(`${process.env.NEXT_PUBLIC_APP_URL}/getFolderStructure`, {path: node.path});
+          const updatedDate = insertChildren(node.path, data, folderStructure.data);
           setData(updatedDate);
         }
        }}

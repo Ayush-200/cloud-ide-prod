@@ -5,6 +5,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { useSocketStore } from '@/store/filestore';
+import { ClientPageRoot } from 'next/dist/client/components/client-page';
 
 export const TerminalComp = () => {
   const socket = useSocketStore((state) => state.socketInstance);
@@ -35,6 +36,9 @@ useEffect(() => {
     })
 
     term.onData((data) =>  {
+      
+      console.log("data", data);
+      console.log(socket);
       socket?.emit('frontend-response', (data));
     })
     return () =>{

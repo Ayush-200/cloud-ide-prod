@@ -2,6 +2,7 @@ import {
   ElasticLoadBalancingV2Client,
   DeregisterTargetsCommand
 } from "@aws-sdk/client-elastic-load-balancing-v2";
+import 'dotenv/config';
 
 const elb = new ElasticLoadBalancingV2Client({
   region: process.env.NEXT_PUBLIC_REGION!// must match your ALB region

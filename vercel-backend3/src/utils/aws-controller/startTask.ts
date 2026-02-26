@@ -2,9 +2,9 @@ import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import { waitForTaskRunning } from "./describeTask.js";
 import { getPrivateIp } from "./extractPrivateIP.js";
 import 'dotenv/config';
-const ecs = new ECSClient({ region: "ap-south-1" });
+const ecs = new ECSClient({ region: process.env.NEXT_PUBLIC_REGION });
 
-export async function startAndPrepareTask(userId: string) {
+export async function startAndPrepareTask(userId: string, sessionId: string) {
   const runResponse = await ecs.send(
     new RunTaskCommand({
       cluster: process.env.NEXT_PUBLIC_CLUSTER_ID,
@@ -18,15 +18,16 @@ export async function startAndPrepareTask(userId: string) {
             process.env.NEXT_PUBLIC_SUBNTET_ID2!
           ],
           securityGroups: [process.env.NEXT_PUBLIC_SECURITY_ID!],
-          assignPublicIp: "DISABLED"
+          assignPublicIp: "ENABLED"
         }
       },
       overrides: {
         containerOverrides: [
           {
-            name: process.env.NEXT_PUBLIC_CLUSTER_ID,
+            name: `cloud-ide-ecr`,
             environment: [
-              { name: "USER_ID", value: userId }
+              { name: "USER_ID", value: userId }, 
+              { name: "SESSION_ID", value: sessionId }
             ]
           }
         ]
