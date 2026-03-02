@@ -4,5 +4,6 @@ export type sessionRequestType = {
 
 export type sessionStopRequest = {
     taskArn: string, 
-    privateIp: string
+    privateIp: string,
+    sessionId: string
 }

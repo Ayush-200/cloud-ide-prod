@@ -12,9 +12,11 @@ export async function startSession(req: Request<{}, {}, sessionRequestType>, res
 
     if(!userId){
         console.error("user does not exist");
+        return res.status(400).json({ error: "userId is required" });
     }
 
-    const sessionId = "12345"
+    // Generate unique session ID
+    const sessionId = nanoid();
 
     const { taskArn, privateIp } = await startAndPrepareTask(userId, sessionId);
 
@@ -40,23 +42,30 @@ export async function endUserSession(
   res: Response
 ) {
 
-  const { taskArn, privateIp } = req.body
+  const { taskArn, privateIp, sessionId } = req.body
+  
   if (!taskArn) {
-    throw new Error("taskArn is required");
+    return res.status(400).json({ error: "taskArn is required" });
   }
 
   if (!privateIp) {
-    throw new Error("privateIp is required");
+    return res.status(400).json({ error: "privateIp is required" });
+  }
+
+  if (!sessionId) {
+    return res.status(400).json({ error: "sessionId is required" });
   }
 
   try {
+    console.log(`Ending session ${sessionId} for task ${taskArn}`);
    
-    await deregisterTarget( process.env.NEXT_PUBLIC_TARGET_GROUP_ARN!, privateIp);
+    await deregisterTarget(process.env.NEXT_PUBLIC_TARGET_GROUP_ARN!, privateIp);
 
     const stopResponse = await stopUserTask(taskArn);
 
     return res.json({
       success: true,
+      sessionId,
       stopResponse
     });
     

@@ -1,5 +1,9 @@
 import express from 'express';
-import  { getFolderStructure }  from '../controller/container.controller.js';
+import  { getFolderStructure, getfileData, saveFileData }  from '../controller/container.controller.js';
 const router = express.Router();
 
-router.get('/getFolderStructure', getFolderStructure);
+router.post('/getFolderStructure', getFolderStructure);
+router.post('/getfileData', getfileData);
+router.post('/saveFileData', saveFileData);
+
+export default router;

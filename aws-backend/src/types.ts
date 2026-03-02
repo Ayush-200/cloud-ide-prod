@@ -11,3 +11,9 @@ export type FileNode = {
 }
 
 export type getFolderStructureResponse = FileNode[];
+
+
+export type writeTerminalRequest = {
+    terminalId: string, 
+    data: string
+}

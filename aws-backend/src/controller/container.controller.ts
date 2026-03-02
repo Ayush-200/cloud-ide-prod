@@ -52,3 +52,23 @@ export const getfileData = async (req: Request<{}, {}, { path: string }>, res: R
         return res.status(500).json({ error: 'Failed to read file' });
     }
 };
+
+export const saveFileData = async (req: Request<{}, {}, { path: string, content: string }>, res: Response) => {
+    try {
+        const { path: filePath, content } = req.body;
+        
+        if (!filePath) {
+            return res.status(400).json({ error: 'path is required' });
+        }
+        
+        if (content === undefined) {
+            return res.status(400).json({ error: 'content is required' });
+        }
+
+        await fs.writeFile(filePath, content, 'utf-8');
+        return res.json({ success: true, message: 'File saved successfully' });
+    } catch (error) {
+        console.error('Error saving file:', error);
+        return res.status(500).json({ error: 'Failed to save file' });
+    }
+};

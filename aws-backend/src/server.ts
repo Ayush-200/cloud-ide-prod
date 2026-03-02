@@ -2,8 +2,10 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
-import * as pty from "node-pty";
+
 import testRoutes from "./routes/test.routes.js";
+import filesRoutes from "./routes/files.routes.js";
+import { registerTerminalSocket } from './sockets/sockets.terminal.js'
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8080;
@@ -20,6 +22,9 @@ app.use(express.urlencoded({ extended: true }));
 // Test routes for Docker container validation
 app.use("/api/test", testRoutes);
 
+// File system routes
+app.use("/", filesRoutes);
+
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
@@ -33,23 +38,9 @@ io.on("connection", (socket) => {
 
   console.log("Connected session:", sessionId);
 
-  const shell = pty.spawn("bash", [], {
-    name: "xterm-color",
-    cols: 80,
-    rows: 24,
-    cwd: process.env.WORKSPACE_DIR || "/workspace"
-  });
-
-  socket.on("frontend-response", (message) => {
-    shell.write(message);
-  });
-
-  shell.onData((data) => {
-    socket.emit("backend-response", data);
-  });
+  registerTerminalSocket(socket);
 
   socket.on("disconnect", () => {
-    shell.kill();
   });
 });
 server.listen(PORT, "0.0.0.0", () => {
