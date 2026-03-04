@@ -7,3 +7,9 @@ export type sessionStopRequest = {
     privateIp: string,
     sessionId: string
 }
+
+export type signupDataType = {
+    name: string, 
+    password: string, 
+    email: string
+}

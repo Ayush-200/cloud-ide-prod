@@ -4,7 +4,7 @@ import { getPrivateIp } from "./extractPrivateIP.js";
 import 'dotenv/config';
 const ecs = new ECSClient({ region: process.env.NEXT_PUBLIC_REGION });
 
-export async function startAndPrepareTask(userId: string, sessionId: string) {
+export async function startAndPrepareTask(userId: string, sessionId: string, accessPointId: string) {
   const runResponse = await ecs.send(
     new RunTaskCommand({
       cluster: process.env.NEXT_PUBLIC_CLUSTER_ID,
@@ -27,7 +27,14 @@ export async function startAndPrepareTask(userId: string, sessionId: string) {
             name: `cloud-ide-ecr`,
             environment: [
               { name: "USER_ID", value: userId }, 
-              { name: "SESSION_ID", value: sessionId }
+              { name: "SESSION_ID", value: sessionId },
+              { name: "ACCESS_POINT_ID", value: accessPointId }
+            ],
+            // Command to ensure workspace directory exists
+            command: [
+              "sh",
+              "-c",
+              "mkdir -p /workspace && node dist/server.js"
             ]
           }
         ]
@@ -40,6 +47,8 @@ export async function startAndPrepareTask(userId: string, sessionId: string) {
   if (!taskArn) {
     throw new Error("Failed to start task");
   }
+
+  console.log(`Task started: ${taskArn} with EFS access point: ${accessPointId}`);
 
   const runningTask = await waitForTaskRunning(taskArn);
   const privateIp = getPrivateIp(runningTask);

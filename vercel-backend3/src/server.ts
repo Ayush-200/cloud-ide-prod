@@ -1,5 +1,5 @@
 import express from 'express';
-import router from './routes/router.js'
+import router from './routes/auth.router.js'
 import awsRouter from './routes/aws.router.js';
 import 'dotenv/config'
 import cors from 'cors';

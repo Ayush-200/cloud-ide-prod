@@ -4,6 +4,8 @@ import { registerTarget } from "../utils/aws-controller/registerTask.js";
 import type { sessionRequestType, sessionStopRequest }  from "../types/types.js";
 import { stopUserTask } from "../utils/aws-controller/stopTask.js";
 import { deregisterTarget } from "../utils/aws-controller/deregisterTask.js";
+import { createAccessPoint } from '../utils/aws-controller/createAccessPointId.js';
+import { getUserById, updateAccessPointId } from '../repositories/user.repository.js';
 import { nanoid } from "nanoid";
 
 export async function startSession(req: Request<{}, {}, sessionRequestType>, res: Response) {
@@ -18,7 +20,37 @@ export async function startSession(req: Request<{}, {}, sessionRequestType>, res
     // Generate unique session ID
     const sessionId = nanoid();
 
-    const { taskArn, privateIp } = await startAndPrepareTask(userId, sessionId);
+    // Get user from database
+    const user = await getUserById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    let accessPointId = user.accessPointId;
+
+    // If user doesn't have an access point, create one
+    if (!accessPointId || accessPointId === "") {
+      console.log(`No access point found for user ${userId}, creating new one...`);
+      
+      try {
+        accessPointId = await createAccessPoint(userId);
+        
+        // Update user record with new access point ID
+        await updateAccessPointId(userId, accessPointId);
+        
+        console.log(`Created and saved access point ${accessPointId} for user ${userId}`);
+      } catch (error) {
+        console.error("Failed to create access point:", error);
+        return res.status(500).json({ error: "Failed to create user workspace" });
+      }
+    } else {
+      console.log(`Using existing access point ${accessPointId} for user ${userId}`);
+    }
+
+    console.log(`Starting session for user ${userId} with access point ${accessPointId}`);
+
+    const { taskArn, privateIp } = await startAndPrepareTask(userId, sessionId, accessPointId);
 
     await registerTarget(privateIp);
 
