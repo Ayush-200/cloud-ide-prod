@@ -39,11 +39,23 @@ export const useSocketStore = create<socketStore>((set) =>  ({
 }))
 
 export const useSessionStore = create<sessionStore>((set) => ({
-    sessionId: null,
-    taskArn: null,
-    privateIp: null,
-    setSessionData: (sessionId, taskArn, privateIp) => 
-        set({ sessionId, taskArn, privateIp }),
-    clearSessionData: () => 
-        set({ sessionId: null, taskArn: null, privateIp: null })
+    sessionId: typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null,
+    taskArn: typeof window !== 'undefined' ? localStorage.getItem('taskArn') : null,
+    privateIp: typeof window !== 'undefined' ? localStorage.getItem('privateIp') : null,
+    setSessionData: (sessionId, taskArn, privateIp) => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('sessionId', sessionId);
+            localStorage.setItem('taskArn', taskArn);
+            localStorage.setItem('privateIp', privateIp);
+        }
+        set({ sessionId, taskArn, privateIp });
+    },
+    clearSessionData: () => {
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('sessionId');
+            localStorage.removeItem('taskArn');
+            localStorage.removeItem('privateIp');
+        }
+        set({ sessionId: null, taskArn: null, privateIp: null });
+    }
 }))
