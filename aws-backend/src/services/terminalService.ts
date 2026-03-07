@@ -1,21 +1,38 @@
-import { v4 as uuid } from "uuid";
 import * as pty from "node-pty";
 import os from "os";
-import path from "path";
 
 const terminals = new Map<string, pty.IPty>();
 
 export function createTerminal(terminalId: string) {
- 
-
   if (!terminals.has(terminalId)) {
     const isWindows = os.platform() === "win32";
 
     const shell = isWindows ? "powershell.exe" : "bash";
 
-    const cwd = isWindows
-      ? process.cwd()               // valid Windows path
-      : process.env.WORKSPACE_DIR || "/workspace";
+    // Get userId and projectName from environment variables
+    const userId = process.env.USER_ID;
+    const projectName = process.env.PROJECT_NAME;
+
+    // Determine working directory
+    let cwd: string;
+    if (isWindows) {
+      cwd = process.cwd(); // Windows path
+    } else {
+      // Use WORKSPACE_PATH if set, otherwise construct from userId/projectName
+      if (process.env.WORKSPACE_PATH) {
+        cwd = process.env.WORKSPACE_PATH;
+      } else if (userId && projectName) {
+        cwd = `/workspace/${userId}/${projectName}`;
+      } else {
+        cwd = '/workspace'; // Fallback to root workspace
+      }
+    }
+
+    console.log('Creating terminal with:');
+    console.log('  Terminal ID:', terminalId);
+    console.log('  User ID:', userId || 'N/A');
+    console.log('  Project Name:', projectName || 'N/A');
+    console.log('  Working Directory:', cwd);
 
     const terminal = pty.spawn(shell, [], {
       name: "xterm-color",
@@ -27,7 +44,7 @@ export function createTerminal(terminalId: string) {
 
     terminals.set(terminalId, terminal);
 
-    console.log("Terminal created:", terminalId);
+    console.log("✅ Terminal created:", terminalId);
   }
 
   return terminalId;
