@@ -2,12 +2,13 @@
 
 import { useEffect } from "react";
 import io from "socket.io-client";
-import { useSocketStore, useSessionStore } from "@/store/filestore";
+import { useSocketStore, useSessionStore, useFolderStore } from "@/store/filestore";
 import { terminalService } from "../app/services/terminalService";
 
 const SocketComponent = () => {
   const setSocket = useSocketStore((state) => state.setSocket);
   const sessionId = useSessionStore((state) => state.sessionId);
+  const { addNode, removeNode } = useFolderStore();
 
   useEffect(() => {
     // Only connect if we have a sessionId
@@ -19,7 +20,7 @@ const SocketComponent = () => {
     console.log(`Connecting socket with sessionId: ${sessionId}`);
 
     const socketInstance = io(
-      "http://cloud-ide-load-balancer-1345223155.ap-south-1.elb.amazonaws.com:8080",
+      "http://cloud-ide-load-balancer-1255940416.ap-south-1.elb.amazonaws.com:8080",
       {
         transports: ["websocket"],
         auth: {
@@ -41,6 +42,46 @@ const SocketComponent = () => {
       }
     );
 
+    // File system events
+    socketInstance.on("file-created", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
+      console.log("📁 File created event:", data);
+      const parentPath = data.path.substring(0, data.path.lastIndexOf('/'));
+      addNode(parentPath, {
+        id: data.path,
+        name: data.name,
+        path: data.path,
+        isDirectory: false,
+        children: []
+      });
+    });
+
+    socketInstance.on("file-changed", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
+      console.log("📝 File changed event:", data);
+      // Optionally trigger a refresh of the file content if it's currently open
+    });
+
+    socketInstance.on("file-deleted", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
+      console.log("🗑️ File deleted event:", data);
+      removeNode(data.path);
+    });
+
+    socketInstance.on("folder-created", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
+      console.log("📂 Folder created event:", data);
+      const parentPath = data.path.substring(0, data.path.lastIndexOf('/'));
+      addNode(parentPath, {
+        id: data.path,
+        name: data.name,
+        path: data.path,
+        isDirectory: true,
+        children: []
+      });
+    });
+
+    socketInstance.on("folder-deleted", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
+      console.log("🗑️ Folder deleted event:", data);
+      removeNode(data.path);
+    });
+
     socketInstance.on("disconnect", () => {
       console.log("Socket disconnected");
       terminalService.disposeAll();
@@ -48,9 +89,14 @@ const SocketComponent = () => {
 
     return () => {
       socketInstance.off("backend-response");
+      socketInstance.off("file-created");
+      socketInstance.off("file-changed");
+      socketInstance.off("file-deleted");
+      socketInstance.off("folder-created");
+      socketInstance.off("folder-deleted");
       socketInstance.disconnect();
     };
-  }, [setSocket, sessionId]);
+  }, [setSocket, sessionId, addNode, removeNode]);
 
   return null;
 };

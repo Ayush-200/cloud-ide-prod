@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:8080';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export function handleFolderRightClick(
   path: string,
@@ -29,9 +29,10 @@ export function handleFolderRightClick(
     { label: 'Delete', action: () => handleDelete(path) },
   ];
 
-  // Add "Create New File" only for directories
+  // Add "Create New File" and "Create New Folder" only for directories
   if (isDirectory) {
     menuItems.push({ label: 'Create New File', action: () => handleCreateFile(path) });
+    menuItems.push({ label: 'Create New Folder', action: () => handleCreateFolder(path) });
   }
 
   // Create menu item elements
@@ -88,15 +89,16 @@ async function handleDelete(path: string) {
 
   try {
     console.log(`Deleting ${path}`);
-    // Dummy API call
-    await axios.post(`${API_URL}/delete`, {
+    await axios.post(`${API_URL}/deleteFileOrFolder`, {
       path: path,
     });
     console.log('Delete successful');
-    alert('Delete successful!');
-  } catch (error) {
+    alert('Delete successful! Please refresh the folder pane.');
+    // Trigger a custom event to refresh folder structure
+    window.dispatchEvent(new CustomEvent('refreshFolderStructure'));
+  } catch (error: any) {
     console.error('Error deleting:', error);
-    alert('Delete failed');
+    alert(error.response?.data?.error || 'Delete failed');
   }
 }
 
@@ -106,15 +108,36 @@ async function handleCreateFile(folderPath: string) {
 
   try {
     console.log(`Creating file ${fileName} in ${folderPath}`);
-    // Dummy API call
     await axios.post(`${API_URL}/createFile`, {
-      folderPath: folderPath,
+      parentPath: folderPath,
       fileName: fileName,
     });
     console.log('File creation successful');
-    alert('File created successfully!');
-  } catch (error) {
+    alert('File created successfully! Please refresh the folder pane.');
+    // Trigger a custom event to refresh folder structure
+    window.dispatchEvent(new CustomEvent('refreshFolderStructure'));
+  } catch (error: any) {
     console.error('Error creating file:', error);
-    alert('File creation failed');
+    alert(error.response?.data?.error || 'File creation failed');
+  }
+}
+
+async function handleCreateFolder(folderPath: string) {
+  const folderName = prompt('Enter folder name:');
+  if (!folderName) return;
+
+  try {
+    console.log(`Creating folder ${folderName} in ${folderPath}`);
+    await axios.post(`${API_URL}/createFolder`, {
+      parentPath: folderPath,
+      folderName: folderName,
+    });
+    console.log('Folder creation successful');
+    alert('Folder created successfully! Please refresh the folder pane.');
+    // Trigger a custom event to refresh folder structure
+    window.dispatchEvent(new CustomEvent('refreshFolderStructure'));
+  } catch (error: any) {
+    console.error('Error creating folder:', error);
+    alert(error.response?.data?.error || 'Folder creation failed');
   }
 }

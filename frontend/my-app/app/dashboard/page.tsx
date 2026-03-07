@@ -1,167 +1,207 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import { useSessionStore } from '@/store/filestore';
-import { useAuth0 } from "@auth0/auth0-react";
 
-const DashboardPage = () => {
-  const router = useRouter();
+interface Project {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+interface ProjectsResponse {
+  success: boolean;
+  projects: Project[];
+}
+
+interface UserResponse {
+  userId: string;
+  name: string;
+  email: string;
+}
+
+interface StartSessionResponse {
+  success: boolean;
+  taskArn: string;
+  privateIp: string;
+  sessionId: string;
+  projectId: string;
+  projectName: string;
+}
+
+const Page = () => {
   const { user, isLoading: authLoading } = useAuth0();
-  const [loading, setLoading] = useState(false);
-  const [stopping, setStopping] = useState(false);
+  const router = useRouter();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const { sessionId, taskArn, privateIp, setSessionData, clearSessionData } = useSessionStore();
+  const [dbUserId, setDbUserId] = useState<string | null>(null);
+  const [startingSession, setStartingSession] = useState<string | null>(null);
+  const { setSessionData } = useSessionStore();
 
-  const VERCEL_BACKEND_URL = 'http://localhost:4000';
+  const VERCEL_BACKEND_URL = process.env.NEXT_PUBLIC_VERCEL_BACKEND_URL || 'http://localhost:4000';
 
-  // Fetch userId from database when user is authenticated
+  // First, get the database userId from Auth0 email
   useEffect(() => {
-    const fetchUserId = async () => {
-      if (user?.email) {
-        try {
-          const response = await axios.post(`${VERCEL_BACKEND_URL}/auth/user`, {
-            email: user.email
-          });
-          const data = response.data as { userId: string; name: string; email: string };
-          setUserId(data.userId);
-          console.log('Fetched userId from database:', data.userId);
-        } catch (err) {
-          console.error('Failed to fetch userId:', err);
-          setError('Failed to fetch user information');
-        }
+    const fetchDbUserId = async () => {
+      if (!user?.email) {
+        return;
+      }
+
+      try {
+        console.log('Fetching database userId for email:', user.email);
+        
+        const response = await axios.post<UserResponse>(`${VERCEL_BACKEND_URL}/auth/user`, {
+          email: user.email
+        });
+
+        console.log('Database user data:', response.data);
+        setDbUserId(response.data.userId);
+      } catch (err: any) {
+        console.error('Error fetching database userId:', err);
+        setError(err.response?.data?.error || 'Failed to fetch user data');
       }
     };
 
-    fetchUserId();
-  }, [user]);
+    if (!authLoading && user?.email) {
+      fetchDbUserId();
+    }
+  }, [user?.email, authLoading, VERCEL_BACKEND_URL]);
 
-  const startSession = async () => {
-    if (!userId) {
-      setError('User ID not available. Please try again.');
+  // Then, fetch projects using the database userId
+  useEffect(() => {
+    const fetchProjects = async () => {
+      if (!dbUserId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('Fetching projects for database userId:', dbUserId);
+        
+        const response = await axios.get<ProjectsResponse>(`${VERCEL_BACKEND_URL}/api/projects`, {
+          params: { userId: dbUserId }
+        });
+
+        console.log('Projects fetched:', response.data);
+        
+        if (response.data.success) {
+          setProjects(response.data.projects);
+        }
+      } catch (err: any) {
+        console.error('Error fetching projects:', err);
+        setError(err.response?.data?.error || 'Failed to load projects');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, [dbUserId, VERCEL_BACKEND_URL]);
+
+  const handleProjectClick = async (project: Project) => {
+    if (!dbUserId) {
+      alert('User not loaded yet');
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
     try {
-      console.log('Starting session for userId:', userId);
-      // Call the vercel-backend to start a session
-      const response = await axios.post(`${VERCEL_BACKEND_URL}/aws/startSession`, {
-        userId: userId
+      setStartingSession(project.id);
+      console.log('Starting session for project:', project);
+
+      const response = await axios.post<StartSessionResponse>(`${VERCEL_BACKEND_URL}/aws/startSession`, {
+        userId: dbUserId,
+        projectId: project.id,
+        projectName: project.name
       });
 
-      const { sessionId, taskArn, privateIp } = response.data as {
-        sessionId: string;
-        taskArn: string;
-        privateIp: string;
-      };
+      console.log('Session started:', response.data);
 
-      console.log('Session started:', { sessionId, taskArn, privateIp });
+      const { sessionId, taskArn, privateIp, projectId, projectName } = response.data;
 
-      // Store session data
-      setSessionData(sessionId, taskArn, privateIp);
+      // Store session data using Zustand (which also updates localStorage)
+      setSessionData(sessionId, taskArn, privateIp, projectId, projectName, dbUserId);
+
+      console.log('Session data stored, navigating to code-editor...');
 
       // Navigate to code editor
       router.push('/code-editor');
     } catch (err: any) {
-      console.error('Failed to start session:', err);
-      setError(err.response?.data?.error || 'Failed to start session. Please try again.');
-    } finally {
-      setLoading(false);
+      console.error('Error starting session:', err);
+      alert(err.response?.data?.error || 'Failed to start session');
+      setStartingSession(null);
     }
   };
 
-  const stopSession = async () => {
-    if (!sessionId || !taskArn || !privateIp) {
-      setError('No active session to stop');
-      return;
-    }
+  if (authLoading || loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#1e1e1e]">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
 
-    setStopping(true);
-    setError(null);
-
-    try {
-      console.log('Stopping session:', { sessionId, taskArn, privateIp });
-      
-      await axios.post(`${VERCEL_BACKEND_URL}/aws/stopSession`, {
-        sessionId,
-        taskArn,
-        privateIp
-      });
-
-      console.log('Session stopped successfully');
-      clearSessionData();
-    } catch (err: any) {
-      console.error('Failed to stop session:', err);
-      setError(err.response?.data?.error || 'Failed to stop session. Please try again.');
-    } finally {
-      setStopping(false);
-    }
-  };
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#1e1e1e]">
+        <div className="text-red-400">{error}</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white">
-      <div className="max-w-md w-full p-8 bg-gray-800 rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+    <div className="min-h-screen bg-[#1e1e1e] text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
         
-        {authLoading ? (
-          <div className="text-center text-gray-400">Loading user information...</div>
-        ) : !user ? (
-          <div className="text-center text-gray-400">Please log in to continue</div>
-        ) : !userId ? (
-          <div className="text-center text-gray-400">Fetching user data...</div>
-        ) : sessionId ? (
-          <div className="space-y-4">
-            <div className="bg-gray-700 p-4 rounded">
-              <p className="text-green-400 font-semibold mb-2">Session Active</p>
-              <p className="text-sm text-gray-300">Session ID: {sessionId.substring(0, 8)}...</p>
-              <p className="text-sm text-gray-300">Task ARN: {taskArn?.substring(taskArn.length - 12)}</p>
-              <p className="text-sm text-gray-300">Private IP: {privateIp}</p>
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold mb-4">Your Projects</h2>
+          
+          {projects.length === 0 ? (
+            <div className="bg-[#252526] border border-gray-700 rounded-lg p-8 text-center">
+              <p className="text-gray-400 mb-4">No projects yet</p>
+              <p className="text-sm text-gray-500">Create your first project to get started</p>
             </div>
-            
-            <button
-              onClick={() => router.push('/code-editor')}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition"
-            >
-              Go to Code Editor
-            </button>
-
-            <button
-              onClick={stopSession}
-              disabled={stopping}
-              className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition"
-            >
-              {stopping ? 'Stopping Session...' : 'Stop Session'}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <p className="text-gray-400 mb-4">
-              Start a new coding session to access your cloud IDE
-            </p>
-            
-            {error && (
-              <div className="bg-red-600 text-white p-3 rounded">
-                {error}
-              </div>
-            )}
-
-            <button
-              onClick={startSession}
-              disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition"
-            >
-              {loading ? 'Starting Session...' : 'Start New Session'}
-            </button>
-          </div>
-        )}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.map((project) => (
+                <div
+                  key={project.id}
+                  onClick={() => handleProjectClick(project)}
+                  className={`bg-[#252526] border border-gray-700 rounded-lg p-6 hover:border-blue-500 transition-colors cursor-pointer relative ${
+                    startingSession === project.id ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  {startingSession === project.id && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
+                      <div className="flex items-center gap-2 text-white">
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                        <span>Starting...</span>
+                      </div>
+                    </div>
+                  )}
+                  <h3 className="text-lg font-semibold mb-2">{project.name}</h3>
+                  <p className="text-sm text-gray-400">
+                    Created: {new Date(project.createdAt).toLocaleDateString()}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">ID: {project.id}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default DashboardPage;
+export default Page

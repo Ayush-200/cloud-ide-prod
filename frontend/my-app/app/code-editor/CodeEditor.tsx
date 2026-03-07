@@ -5,13 +5,32 @@ import { useFileStore } from "@/store/filestore";
 import throttle from 'lodash.throttle'
 import { useMemo } from "react";
 import axios from 'axios';
+
 export const CodeEditor = () => {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  
   const updaateUsingThrottle = useMemo(() => {
     return throttle((value, path) => { 
-      console.log(process.env.NEXT_PUBLIC_APP_URL);
-      axios.post(`${process.env.NEXT_PUBLIC_APP_URL}/saveFileData`, {path: path, content: value});
-    }, 5000)
-  }, [])
+      if (!path) {
+        console.warn('⚠️ No file path, skipping save');
+        return;
+      }
+      
+      console.log('💾 Saving file:', path);
+      console.log('📝 Content length:', value?.length || 0);
+      
+      axios.post(`${API_URL}/saveFileData`, {
+        path: path, 
+        content: value
+      })
+      .then(() => {
+        console.log('✅ File saved successfully');
+      })
+      .catch((err) => {
+        console.error('❌ Failed to save file:', err);
+      });
+    }, 2000) // Reduced to 2 seconds
+  }, [API_URL])
 
     const fileContent = useFileStore((state) => state.fileContent);
     const setFileContent = useFileStore((state) => state.setFileContent);
@@ -25,7 +44,7 @@ export const CodeEditor = () => {
         theme="vs-dark"
         onChange={(value) => {
           setFileContent(value ?? "")
-          updaateUsingThrottle(fileContent, currentFilePath)
+          updaateUsingThrottle(value, currentFilePath) // Fixed: use 'value' not 'fileContent'
         }}
       />
     );

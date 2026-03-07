@@ -2,35 +2,128 @@ import {useEffect, useState} from 'react'
 import axios from 'axios';
 import { Tree } from 'react-arborist';
 import { FileNode } from '../../types';
-import {useFileStore} from '../../store/filestore';
+import {useFileStore, useFolderStore, useSessionStore} from '../../store/filestore';
 import { handleFolderRightClick } from '../utils/handleFolderRightClick';
 
 const FolderPane = () => {
   const setFileContent = useFileStore((state) => state.setFileContent);
   const setCurrentFilePath = useFileStore((state) => state.setCurrentFilePath);
+  const { folderStructure, setFolderStructure } = useFolderStore();
+  const { projectName, userId } = useSessionStore();
   const [data, setData] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
   
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
+  // Get the workspace root path - terminal is at /workspace by default
+  const getWorkspaceRoot = () => {
+    // Terminal and container default to /workspace
+    return '/workspace';
+  };
+
+  const handleCreateFile = async () => {
+    const fileName = prompt('Enter file name:');
+    if (!fileName) return;
+
+    try {
+      const workspaceRoot = getWorkspaceRoot();
+      const response = await axios.post<{ success: boolean; message: string; path: string; name: string }>(`${API_URL}/createFile`, {
+        parentPath: workspaceRoot,
+        fileName: fileName
+      });
+
+      if (response.data.success) {
+        console.log('File created:', response.data);
+        // Refresh folder structure
+        const res = await axios.post<FileNode[]>(`${API_URL}/getFolderStructure`, {path: workspaceRoot});
+        setData(res.data);
+        setFolderStructure(res.data);
+      }
+    } catch (error: any) {
+      console.error('Error creating file:', error);
+      alert(error.response?.data?.error || 'Failed to create file');
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    const folderName = prompt('Enter folder name:');
+    if (!folderName) return;
+
+    try {
+      const workspaceRoot = getWorkspaceRoot();
+      const response = await axios.post<{ success: boolean; message: string; path: string; name: string }>(`${API_URL}/createFolder`, {
+        parentPath: workspaceRoot,
+        folderName: folderName
+      });
+
+      if (response.data.success) {
+        console.log('Folder created:', response.data);
+        // Refresh folder structure
+        const res = await axios.post<FileNode[]>(`${API_URL}/getFolderStructure`, {path: workspaceRoot});
+        setData(res.data);
+        setFolderStructure(res.data);
+      }
+    } catch (error: any) {
+      console.error('Error creating folder:', error);
+      alert(error.response?.data?.error || 'Failed to create folder');
+    }
+  };
+
+  // Sync folder store with local state
+  useEffect(() => {
+    if (folderStructure.length > 0) {
+      setData(folderStructure);
+    }
+  }, [folderStructure]);
+
+  // Listen for refresh events from context menu actions
+  useEffect(() => {
+    const handleRefresh = async () => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        console.log('🔄 Refreshing folder structure after context menu action...');
+        const res = await axios.post<FileNode[]>(`${API_URL}/getFolderStructure`, {path: workspaceRoot});
+        setData(res.data);
+        setFolderStructure(res.data);
+        console.log('✅ Folder structure refreshed:', res.data.length, 'items');
+      } catch (err) {
+        console.error("❌ Error refreshing folder structure:", err);
+      }
+    };
+
+    window.addEventListener('refreshFolderStructure', handleRefresh);
+    return () => {
+      window.removeEventListener('refreshFolderStructure', handleRefresh);
+    };
+  }, [API_URL, setFolderStructure]);
+
   useEffect(() =>  {
     const fetchData = async () =>  {
       try{
         setLoading(true);
-        console.log('Fetching from:', API_URL);
-        const res = await axios.post<FileNode[]>(`${API_URL}/getFolderStructure`, {path: '/workspace'});
+        const workspaceRoot = getWorkspaceRoot();
+        
+        console.log('=== FOLDER PANE DEBUG ===');
+        console.log('API_URL:', API_URL);
+        console.log('userId:', userId);
+        console.log('projectName:', projectName);
+        console.log('Workspace root:', workspaceRoot);
+        console.log('========================');
+        
+        const res = await axios.post<FileNode[]>(`${API_URL}/getFolderStructure`, {path: workspaceRoot});
         setData(res.data);
-        console.log('Folder structure loaded:', res.data);
+        setFolderStructure(res.data);
+        console.log('✅ Folder structure loaded:', res.data.length, 'items');
       }catch(err){
-        console.log("error in first load of folder structure", err);
+        console.error("❌ Error loading folder structure:", err);
       } finally {
         setLoading(false);
       }
     }
 
     fetchData();
-  }, [API_URL]);
+  }, [API_URL, setFolderStructure, projectName, userId]);
   
   const insertChildren = (targetPath: string, nodes: FileNode[], NewChildren: FileNode[]): FileNode[] =>  {
     return nodes.map((node: FileNode) => {
@@ -121,6 +214,19 @@ const FolderPane = () => {
           scrollbar-width: none;
         }
       `}</style>
+      
+      {/* Project Header */}
+      {projectName && (
+        <div className="px-4 py-3 border-b border-gray-700 bg-[#1e1e1e]">
+          <div className="flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" className="text-blue-400">
+              <path d="M14.5 3H7.71l-.85-.85L6.51 2h-5l-.5.5v11l.5.5h13l.5-.5v-10L14.5 3zm-.51 8.49V13h-12V7h4.49l.35-.15.86-.86H14v1.5l-.01 4zm0-6.49h-6.5l-.35.15-.86.86H2v-3h4.29l.85.85.36.15H14l-.01.99z"/>
+            </svg>
+            <span className="text-sm font-semibold text-white truncate">{projectName}</span>
+          </div>
+        </div>
+      )}
+      
       {loading ? (
         <div className="p-4 text-gray-400 flex items-center gap-2">
           <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -130,7 +236,37 @@ const FolderPane = () => {
           Loading...
         </div>
       ) : data.length === 0 ? (
-        <div className="p-4 text-gray-400">No files found</div>
+        <div className="p-4 flex flex-col items-center justify-center gap-4 text-center">
+          <div className="text-gray-400 mb-2">
+            <svg width="48" height="48" viewBox="0 0 16 16" fill="currentColor" className="mx-auto mb-2 opacity-50">
+              <path d="M14.5 3H7.71l-.85-.85L6.51 2h-5l-.5.5v11l.5.5h13l.5-.5v-10L14.5 3zm-.51 8.49V13h-12V7h4.49l.35-.15.86-.86H14v1.5l-.01 4zm0-6.49h-6.5l-.35.15-.86.86H2v-3h4.29l.85.85.36.15H14l-.01.99z"/>
+            </svg>
+            <p className="text-sm">No files or folders</p>
+            <p className="text-xs text-gray-500 mt-1">Get started by creating your first file or folder</p>
+          </div>
+          
+          <div className="flex flex-col gap-2 w-full px-2">
+            <button
+              onClick={handleCreateFile}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M13.71 4.29l-3-3L10 1H4L3 2v12l1 1h9l1-1V5l-.29-.71zM13 14H4V2h5v4h4v8zm-3-9V2l3 3h-3z"/>
+              </svg>
+              New File
+            </button>
+            
+            <button
+              onClick={handleCreateFolder}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M14.5 3H7.71l-.85-.85L6.51 2h-5l-.5.5v11l.5.5h13l.5-.5v-10L14.5 3zm-.51 8.49V13h-12V7h4.49l.35-.15.86-.86H14v1.5l-.01 4zm0-6.49h-6.5l-.35.15-.86.86H2v-3h4.29l.85.85.36.15H14l-.01.99z"/>
+              </svg>
+              New Folder
+            </button>
+          </div>
+        </div>
       ) : (
         <Tree<FileNode>
          data={data} 
@@ -174,6 +310,7 @@ const FolderPane = () => {
                 
                 const updatedData = insertChildren(node.path, data, folderStructure.data);
                 setData(updatedData);
+                setFolderStructure(updatedData);
                 console.log('Data updated, opening folder...');
                 
                 // Remove from loading set
