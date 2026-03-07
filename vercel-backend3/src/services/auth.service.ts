@@ -1,5 +1,5 @@
 import db from '../db';
-import { users } from '../model/user.model';
+import { users } from '../db/schema.js';
 import { insertUser } from '../repositories/user.repository.js';
 import type {signupDataType} from '../types/types';
 import bcrypt from 'bcrypt';

@@ -4,7 +4,17 @@ import { getPrivateIp } from "./extractPrivateIP.js";
 import 'dotenv/config';
 const ecs = new ECSClient({ region: process.env.NEXT_PUBLIC_REGION });
 
-export async function startAndPrepareTask(userId: string, sessionId: string, accessPointId: string) {
+export async function startAndPrepareTask(
+  userId: string, 
+  sessionId: string, 
+  accessPointId: string,
+  projectName: string
+) {
+  // Create workspace path: /workspace/{userId}/{projectName}
+  const workspacePath = `/workspace/${userId}/${projectName}`;
+
+  console.log(`Creating workspace at: ${workspacePath}`);
+
   const runResponse = await ecs.send(
     new RunTaskCommand({
       cluster: process.env.NEXT_PUBLIC_CLUSTER_ID,
@@ -28,13 +38,15 @@ export async function startAndPrepareTask(userId: string, sessionId: string, acc
             environment: [
               { name: "USER_ID", value: userId }, 
               { name: "SESSION_ID", value: sessionId },
-              { name: "ACCESS_POINT_ID", value: accessPointId }
+              { name: "ACCESS_POINT_ID", value: accessPointId },
+              { name: "WORKSPACE_PATH", value: workspacePath },
+              { name: "PROJECT_NAME", value: projectName }
             ],
             // Command to ensure workspace directory exists
             command: [
               "sh",
               "-c",
-              "mkdir -p /workspace && node dist/server.js"
+              `mkdir -p ${workspacePath} && node /app/dist/server.js`
             ]
           }
         ]
@@ -48,7 +60,11 @@ export async function startAndPrepareTask(userId: string, sessionId: string, acc
     throw new Error("Failed to start task");
   }
 
-  console.log(`Task started: ${taskArn} with EFS access point: ${accessPointId}`);
+  console.log(`✅ Task started: ${taskArn}`);
+  console.log(`📁 Workspace: ${workspacePath}`);
+  console.log(`🔗 EFS Access Point: ${accessPointId}`);
+  console.log(`👤 User: ${userId}`);
+  console.log(`📦 Project: ${projectName}`);
 
   const runningTask = await waitForTaskRunning(taskArn);
   const privateIp = getPrivateIp(runningTask);

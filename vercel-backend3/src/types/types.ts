@@ -1,5 +1,7 @@
 export type sessionRequestType = {
-    userId: string
+    userId: string,
+    projectId?: string,
+    projectName?: string
 }
 
 export type sessionStopRequest = {

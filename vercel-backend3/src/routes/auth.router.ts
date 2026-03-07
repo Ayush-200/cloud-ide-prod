@@ -6,11 +6,11 @@ import { loginUserController, signupUserController, getUserByEmailController } f
 import { refreshAccessToken } from '../utils/refreshAccessToken'
 const router = express.Router();
 
-router.post("/auth/login", loginValidator, validateErrors, loginUserController);
+router.post("/login", loginValidator, validateErrors, loginUserController);
 
-router.post('/auth/signup', signupValidator, validateErrors, signupUserController);
+router.post('/signup', signupValidator, validateErrors, signupUserController);
 
-router.post('/auth/user', getUserByEmailController);
+router.post('/user', getUserByEmailController);
 
 router.post('/refresh', refreshAccessToken);
 

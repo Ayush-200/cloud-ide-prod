@@ -48,13 +48,6 @@ export const getUserById = async (userId: string) => {
     return result[0] || null;
 }
 
-export const updateAccessPointId = async (userId: string, accessPointId: string) => {
-    await db
-        .update(users)
-        .set({ accessPointId: accessPointId })
-        .where(eq(users.userId, userId));
-}
-
 export const getUserByEmail = async (email: string) => {
     const result = await db
         .select()
