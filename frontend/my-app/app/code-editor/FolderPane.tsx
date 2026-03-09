@@ -16,9 +16,14 @@ const FolderPane = () => {
   
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
-  // Get the workspace root path - terminal is at /workspace by default
+  // Get the workspace root path based on userId and projectName
   const getWorkspaceRoot = () => {
-    // Terminal and container default to /workspace
+    // If we have userId and projectName, use the specific project directory
+    if (userId && projectName) {
+      return `/workspace/${userId}/${projectName}`;
+    }
+    
+    // Fallback to /workspace root if session data not available
     return '/workspace';
   };
 

@@ -32,6 +32,11 @@ interface StartSessionResponse {
   projectName: string;
 }
 
+interface CreateProjectResponse {
+  success: boolean;
+  project: Project;
+}
+
 const Page = () => {
   const { user, isLoading: authLoading } = useAuth0();
   const router = useRouter();
@@ -40,6 +45,7 @@ const Page = () => {
   const [error, setError] = useState<string | null>(null);
   const [dbUserId, setDbUserId] = useState<string | null>(null);
   const [startingSession, setStartingSession] = useState<string | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
   const { setSessionData } = useSessionStore();
 
   const VERCEL_BACKEND_URL = process.env.NEXT_PUBLIC_VERCEL_BACKEND_URL || 'http://localhost:4000';
@@ -139,6 +145,57 @@ const Page = () => {
     }
   };
 
+  const handleCreateNewProject = async () => {
+    if (!dbUserId) {
+      alert('User not loaded yet');
+      return;
+    }
+
+    const projectName = prompt('Enter project name:');
+    if (!projectName || projectName.trim() === '') {
+      return;
+    }
+
+    try {
+      setCreatingProject(true);
+      console.log('Creating new project:', projectName);
+
+      // Create the project
+      const createResponse = await axios.post<CreateProjectResponse>(`${VERCEL_BACKEND_URL}/api/projects`, {
+        userId: dbUserId,
+        projectName: projectName.trim()
+      });
+
+      console.log('Project created:', createResponse.data);
+
+      const newProject = createResponse.data.project;
+
+      // Start session for the new project
+      console.log('Starting session for new project...');
+      const sessionResponse = await axios.post<StartSessionResponse>(`${VERCEL_BACKEND_URL}/aws/startSession`, {
+        userId: dbUserId,
+        projectId: newProject.id,
+        projectName: newProject.name
+      });
+
+      console.log('Session started:', sessionResponse.data);
+
+      const { sessionId, taskArn, privateIp, projectId, projectName: projName } = sessionResponse.data;
+
+      // Store session data
+      setSessionData(sessionId, taskArn, privateIp, projectId, projName, dbUserId);
+
+      console.log('Navigating to code-editor...');
+
+      // Navigate to code editor
+      router.push('/code-editor');
+    } catch (err: any) {
+      console.error('Error creating project:', err);
+      alert(err.response?.data?.error || 'Failed to create project');
+      setCreatingProject(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#1e1e1e]">
@@ -158,7 +215,32 @@ const Page = () => {
   return (
     <div className="min-h-screen bg-[#1e1e1e] text-white p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          
+          <button
+            onClick={handleCreateNewProject}
+            disabled={creatingProject || !dbUserId}
+            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
+          >
+            {creatingProject ? (
+              <>
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                </svg>
+                <span>Creating...</span>
+              </>
+            ) : (
+              <>
+                <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 3.5a.5.5 0 0 1 .5.5v3.5H12a.5.5 0 0 1 0 1H8.5V12a.5.5 0 0 1-1 0V8.5H4a.5.5 0 0 1 0-1h3.5V4a.5.5 0 0 1 .5-.5z"/>
+                </svg>
+                <span>Create New Project</span>
+              </>
+            )}
+          </button>
+        </div>
         
         <div className="mb-6">
           <h2 className="text-xl font-semibold mb-4">Your Projects</h2>

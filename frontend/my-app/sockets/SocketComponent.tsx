@@ -46,13 +46,32 @@ const SocketComponent = () => {
     socketInstance.on("file-created", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
       console.log("📁 File created event:", data);
       const parentPath = data.path.substring(0, data.path.lastIndexOf('/'));
-      addNode(parentPath, {
-        id: data.path,
-        name: data.name,
-        path: data.path,
-        isDirectory: false,
-        children: []
-      });
+      
+      // If it's a root-level file (parent is the workspace root), add directly to folderStructure
+      if (data.relativePath && !data.relativePath.includes('/')) {
+        console.log("Adding root-level file:", data.name);
+        const { folderStructure, setFolderStructure } = useFolderStore.getState();
+        const newNode = {
+          id: data.path,
+          name: data.name,
+          path: data.path,
+          isDirectory: false,
+          children: []
+        };
+        // Check if node already exists
+        if (!folderStructure.some(n => n.path === data.path)) {
+          setFolderStructure([...folderStructure, newNode]);
+        }
+      } else {
+        // It's a nested file, use addNode
+        addNode(parentPath, {
+          id: data.path,
+          name: data.name,
+          path: data.path,
+          isDirectory: false,
+          children: []
+        });
+      }
     });
 
     socketInstance.on("file-changed", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
@@ -68,13 +87,32 @@ const SocketComponent = () => {
     socketInstance.on("folder-created", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
       console.log("📂 Folder created event:", data);
       const parentPath = data.path.substring(0, data.path.lastIndexOf('/'));
-      addNode(parentPath, {
-        id: data.path,
-        name: data.name,
-        path: data.path,
-        isDirectory: true,
-        children: []
-      });
+      
+      // If it's a root-level folder (parent is the workspace root), add directly to folderStructure
+      if (data.relativePath && !data.relativePath.includes('/')) {
+        console.log("Adding root-level folder:", data.name);
+        const { folderStructure, setFolderStructure } = useFolderStore.getState();
+        const newNode = {
+          id: data.path,
+          name: data.name,
+          path: data.path,
+          isDirectory: true,
+          children: []
+        };
+        // Check if node already exists
+        if (!folderStructure.some(n => n.path === data.path)) {
+          setFolderStructure([...folderStructure, newNode]);
+        }
+      } else {
+        // It's a nested folder, use addNode
+        addNode(parentPath, {
+          id: data.path,
+          name: data.name,
+          path: data.path,
+          isDirectory: true,
+          children: []
+        });
+      }
     });
 
     socketInstance.on("folder-deleted", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
