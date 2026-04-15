@@ -5,7 +5,8 @@ import type { sessionRequestType, sessionStopRequest }  from "../types/types.js"
 import { stopUserTask } from "../utils/aws-controller/stopTask.js";
 import { deregisterTarget } from "../utils/aws-controller/deregisterTask.js";
 import { nanoid } from "nanoid";
-import { createSession, deleteSession } from '../repositories/session.repository.js';
+import { createSession, deleteSession, getSessionByUserAndProject, updateSession } from '../repositories/session.repository.js';
+import { storeWorkspaceInRedis, deleteWorkspaceFromRedis } from '../services/workspace.service.js';
 
 export async function startSession(req: Request<{}, {}, sessionRequestType>, res: Response) {
   try {
@@ -21,8 +22,27 @@ export async function startSession(req: Request<{}, {}, sessionRequestType>, res
         return res.status(400).json({ error: "projectName is required" });
     }
 
-    // Generate unique session ID
-    const sessionId = nanoid();
+    // Check if there's an existing session for this user/project
+    const existingSession = await getSessionByUserAndProject(userId, projectId, projectName);
+    
+    if (existingSession) {
+      console.log(`Found existing session: ${existingSession.sessionId}`);
+      
+      // Stop the old task if it exists
+      if (existingSession.taskArn) {
+        try {
+          console.log(`Stopping old task: ${existingSession.taskArn}`);
+          await stopUserTask(existingSession.taskArn);
+          await deregisterTarget(process.env.NEXT_PUBLIC_TARGET_GROUP_ARN!, existingSession.privateIp);
+        } catch (err) {
+          console.warn('Failed to stop old task:', err);
+          // Continue anyway - the old task might already be stopped
+        }
+      }
+    }
+
+    // Generate session ID (reuse existing or create new)
+    const sessionId = existingSession?.sessionId || nanoid();
 
     // Use shared access point for all users
     const accessPointId = process.env.SHARED_ACCESS_POINT_ID!;
@@ -43,8 +63,26 @@ export async function startSession(req: Request<{}, {}, sessionRequestType>, res
 
     await registerTarget(privateIp);
 
-    // Store session in database for proxy routing
-    await createSession(sessionId, userId, privateIp, taskArn, projectId, projectName);
+    // Store workspace data in Redis for reverse proxy
+    await storeWorkspaceInRedis(sessionId, {
+      ip: privateIp,
+      userId,
+      projectName,
+      sessionId,
+      taskArn
+    });
+    console.log(`✅ Workspace stored in Redis: workspace:${sessionId}`);
+
+    // Update existing session or create new one
+    if (existingSession) {
+      console.log(`Updating existing session ${sessionId} with new IP: ${privateIp}, taskArn: ${taskArn}`);
+      await updateSession(sessionId, privateIp, taskArn);
+      console.log(`✅ Session ${sessionId} updated successfully`);
+    } else {
+      console.log(`Creating new session ${sessionId} with IP: ${privateIp}`);
+      await createSession(sessionId, userId, privateIp, taskArn, projectId, projectName);
+      console.log(`✅ Session ${sessionId} created successfully`);
+    }
 
     return res.json({
       success: true,
@@ -107,6 +145,10 @@ export async function endUserSession(
 
     // Delete session from database
     await deleteSession(sessionId);
+
+    // Delete workspace from Redis
+    await deleteWorkspaceFromRedis(sessionId);
+    console.log(`✅ Workspace deleted from Redis: workspace:${sessionId}`);
 
     return res.json({
       success: true,
