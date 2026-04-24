@@ -8,9 +8,9 @@ export const OutputPreview = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   const { sessionId } = useSessionStore();
-  const VERCEL_BACKEND_URL = process.env.NEXT_PUBLIC_VERCEL_BACKEND_URL || 'http://localhost:4000';
+  const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:4000';
 
-  const previewUrl = `${VERCEL_BACKEND_URL}/output/${port}?sessionId=${sessionId}`;
+  const previewUrl = `${BACKEND_API_URL}/output/${port}?sessionId=${sessionId}`;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);

@@ -14,7 +14,7 @@ const FolderPane = () => {
   const [loading, setLoading] = useState(true);
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
   
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  const API_URL = process.env.NEXT_PUBLIC_CONTAINER_API_URL || 'http://localhost:8080';
 
   // Get the workspace root path based on userId and projectName
   const getWorkspaceRoot = () => {

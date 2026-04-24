@@ -8,7 +8,6 @@ import { terminalService } from "../app/services/terminalService";
 const SocketComponent = () => {
   const setSocket = useSocketStore((state) => state.setSocket);
   const sessionId = useSessionStore((state) => state.sessionId);
-  const { addNode, removeNode } = useFolderStore();
 
   useEffect(() => {
     // Only connect if we have a sessionId
@@ -19,20 +18,20 @@ const SocketComponent = () => {
 
     console.log(`Connecting socket with sessionId: ${sessionId}`);
 
-    const socketInstance = io(
-      "http://cloud-ide-load-balancer-1255940416.ap-south-1.elb.amazonaws.com:8080",
-      {
-        transports: ["websocket"],
-        auth: {
-          sessionId: sessionId,
-        },
-      }
-    );
+    // Connect to ALB (aws-backend) for file operations, terminal, and file watching
+    const CONTAINER_API_URL = process.env.NEXT_PUBLIC_CONTAINER_API_URL || 'http://localhost:8080';
+    
+    const socketInstance = io(CONTAINER_API_URL, {
+      transports: ["websocket"],
+      auth: {
+        sessionId: sessionId,
+      },
+    });
 
     setSocket(socketInstance);
 
     socketInstance.on("connect", () => {
-      console.log(`Socket connected with sessionId: ${sessionId}`);
+      console.log(`Socket connected to container at ${CONTAINER_API_URL} with sessionId: ${sessionId}`);
     });
 
     socketInstance.on(
@@ -46,6 +45,7 @@ const SocketComponent = () => {
     socketInstance.on("file-created", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
       console.log("📁 File created event:", data);
       const parentPath = data.path.substring(0, data.path.lastIndexOf('/'));
+      const { addNode } = useFolderStore.getState();
       
       // If it's a root-level file (parent is the workspace root), add directly to folderStructure
       if (data.relativePath && !data.relativePath.includes('/')) {
@@ -81,12 +81,14 @@ const SocketComponent = () => {
 
     socketInstance.on("file-deleted", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
       console.log("🗑️ File deleted event:", data);
+      const { removeNode } = useFolderStore.getState();
       removeNode(data.path);
     });
 
     socketInstance.on("folder-created", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
       console.log("📂 Folder created event:", data);
       const parentPath = data.path.substring(0, data.path.lastIndexOf('/'));
+      const { addNode } = useFolderStore.getState();
       
       // If it's a root-level folder (parent is the workspace root), add directly to folderStructure
       if (data.relativePath && !data.relativePath.includes('/')) {
@@ -117,6 +119,7 @@ const SocketComponent = () => {
 
     socketInstance.on("folder-deleted", (data: { path: string; name: string; relativePath: string; isDirectory: boolean }) => {
       console.log("🗑️ Folder deleted event:", data);
+      const { removeNode } = useFolderStore.getState();
       removeNode(data.path);
     });
 
@@ -134,7 +137,7 @@ const SocketComponent = () => {
       socketInstance.off("folder-deleted");
       socketInstance.disconnect();
     };
-  }, [setSocket, sessionId, addNode, removeNode]);
+  }, [setSocket, sessionId]);
 
   return null;
 };

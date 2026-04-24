@@ -4,7 +4,7 @@ import { registerTarget } from "../utils/aws-controller/registerTask.js";
 import type { sessionRequestType, sessionStopRequest }  from "../types/types.js";
 import { stopUserTask } from "../utils/aws-controller/stopTask.js";
 import { deregisterTarget } from "../utils/aws-controller/deregisterTask.js";
-import { nanoid } from "nanoid";
+import { customAlphabet } from "nanoid";
 import { createSession, deleteSession, getSessionByUserAndProject, updateSession } from '../repositories/session.repository.js';
 import { storeWorkspaceInRedis, deleteWorkspaceFromRedis } from '../services/workspace.service.js';
 
@@ -39,10 +39,14 @@ export async function startSession(req: Request<{}, {}, sessionRequestType>, res
           // Continue anyway - the old task might already be stopped
         }
       }
+      
+      // Delete the old session from database
+      await deleteSession(existingSession.sessionId);
     }
 
-    // Generate session ID (reuse existing or create new)
-    const sessionId = existingSession?.sessionId || nanoid();
+    // Always generate a NEW session ID for each start (lowercase only for DNS compatibility)
+    const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz0123456789', 21);
+    const sessionId = nanoid();
 
     // Use shared access point for all users
     const accessPointId = process.env.SHARED_ACCESS_POINT_ID!;
@@ -73,16 +77,10 @@ export async function startSession(req: Request<{}, {}, sessionRequestType>, res
     });
     console.log(`✅ Workspace stored in Redis: workspace:${sessionId}`);
 
-    // Update existing session or create new one
-    if (existingSession) {
-      console.log(`Updating existing session ${sessionId} with new IP: ${privateIp}, taskArn: ${taskArn}`);
-      await updateSession(sessionId, privateIp, taskArn);
-      console.log(`✅ Session ${sessionId} updated successfully`);
-    } else {
-      console.log(`Creating new session ${sessionId} with IP: ${privateIp}`);
-      await createSession(sessionId, userId, privateIp, taskArn, projectId, projectName);
-      console.log(`✅ Session ${sessionId} created successfully`);
-    }
+    // Always create a new session (old one was deleted above if it existed)
+    console.log(`Creating new session ${sessionId} with IP: ${privateIp}`);
+    await createSession(sessionId, userId, privateIp, taskArn, projectId, projectName);
+    console.log(`✅ Session ${sessionId} created successfully`);
 
     return res.json({
       success: true,

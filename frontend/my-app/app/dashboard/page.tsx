@@ -48,7 +48,7 @@ const Page = () => {
   const [creatingProject, setCreatingProject] = useState(false);
   const { setSessionData } = useSessionStore();
 
-  const VERCEL_BACKEND_URL = process.env.NEXT_PUBLIC_VERCEL_BACKEND_URL || 'http://localhost:4000';
+  const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:4000';
 
   // First, get the database userId from Auth0 email
   useEffect(() => {
@@ -60,7 +60,7 @@ const Page = () => {
       try {
         console.log('Fetching database userId for email:', user.email);
         
-        const response = await axios.post<UserResponse>(`${VERCEL_BACKEND_URL}/auth/user`, {
+        const response = await axios.post<UserResponse>(`${BACKEND_API_URL}/auth/user`, {
           email: user.email
         });
 
@@ -75,7 +75,7 @@ const Page = () => {
     if (!authLoading && user?.email) {
       fetchDbUserId();
     }
-  }, [user?.email, authLoading, VERCEL_BACKEND_URL]);
+  }, [user?.email, authLoading, BACKEND_API_URL]);
 
   // Then, fetch projects using the database userId
   useEffect(() => {
@@ -91,7 +91,7 @@ const Page = () => {
         
         console.log('Fetching projects for database userId:', dbUserId);
         
-        const response = await axios.get<ProjectsResponse>(`${VERCEL_BACKEND_URL}/api/projects`, {
+        const response = await axios.get<ProjectsResponse>(`${BACKEND_API_URL}/api/projects`, {
           params: { userId: dbUserId }
         });
 
@@ -109,7 +109,7 @@ const Page = () => {
     };
 
     fetchProjects();
-  }, [dbUserId, VERCEL_BACKEND_URL]);
+  }, [dbUserId, BACKEND_API_URL]);
 
   const handleProjectClick = async (project: Project) => {
     if (!dbUserId) {
@@ -121,7 +121,7 @@ const Page = () => {
       setStartingSession(project.id);
       console.log('Starting session for project:', project);
 
-      const response = await axios.post<StartSessionResponse>(`${VERCEL_BACKEND_URL}/aws/startSession`, {
+      const response = await axios.post<StartSessionResponse>(`${BACKEND_API_URL}/aws/startSession`, {
         userId: dbUserId,
         projectId: project.id,
         projectName: project.name
@@ -161,7 +161,7 @@ const Page = () => {
       console.log('Creating new project:', projectName);
 
       // Create the project
-      const createResponse = await axios.post<CreateProjectResponse>(`${VERCEL_BACKEND_URL}/api/projects`, {
+      const createResponse = await axios.post<CreateProjectResponse>(`${BACKEND_API_URL}/api/projects`, {
         userId: dbUserId,
         projectName: projectName.trim()
       });
@@ -172,7 +172,7 @@ const Page = () => {
 
       // Start session for the new project
       console.log('Starting session for new project...');
-      const sessionResponse = await axios.post<StartSessionResponse>(`${VERCEL_BACKEND_URL}/aws/startSession`, {
+      const sessionResponse = await axios.post<StartSessionResponse>(`${BACKEND_API_URL}/aws/startSession`, {
         userId: dbUserId,
         projectId: newProject.id,
         projectName: newProject.name

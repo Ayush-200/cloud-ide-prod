@@ -7,7 +7,7 @@ import { useMemo } from "react";
 import axios from 'axios';
 
 export const CodeEditor = () => {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  const API_URL = process.env.NEXT_PUBLIC_CONTAINER_API_URL || 'http://localhost:8080';
   
   const updaateUsingThrottle = useMemo(() => {
     return throttle((value, path) => { 

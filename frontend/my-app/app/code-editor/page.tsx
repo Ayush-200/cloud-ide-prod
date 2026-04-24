@@ -12,7 +12,7 @@ const Page = () => {
   const router = useRouter();
   const { sessionId, taskArn, privateIp, clearSessionData } = useSessionStore();
   const [showOutput, setShowOutput] = useState(false);
-  const VERCEL_BACKEND_URL = process.env.NEXT_PUBLIC_VERCEL_BACKEND_URL || 'http://localhost:4000';
+  const BACKEND_API_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:4000';
 
   // Redirect to dashboard if no session
   useEffect(() => {
@@ -37,7 +37,7 @@ const Page = () => {
         // Use sendBeacon for reliable cleanup on page unload
         const data = JSON.stringify({ sessionId, taskArn, privateIp });
         const blob = new Blob([data], { type: 'application/json' });
-        navigator.sendBeacon(`${VERCEL_BACKEND_URL}/aws/stopSession`, blob);
+        navigator.sendBeacon(`${BACKEND_API_URL}/aws/stopSession`, blob);
         
         // Clear local storage
         clearSessionData();
@@ -49,7 +49,7 @@ const Page = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [sessionId, taskArn, privateIp, clearSessionData, VERCEL_BACKEND_URL]);
+  }, [sessionId, taskArn, privateIp, clearSessionData, BACKEND_API_URL]);
 
   return (
     <>

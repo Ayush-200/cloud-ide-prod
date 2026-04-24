@@ -28,7 +28,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.3",
     "nanoid": "^5.1.6",
-    "pg": "^8.19.0"
+    "pg": "^8.20.0",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

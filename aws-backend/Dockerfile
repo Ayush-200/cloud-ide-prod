@@ -1,6 +1,5 @@
 # -------- Build Stage --------
 FROM node:20 AS builder
-
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
@@ -17,34 +16,31 @@ COPY src ./src
 
 RUN rm -rf dist && npm run build
 
-
-# -------- Runtime Stage (Execution Environment) --------
+# -------- Runtime Stage --------
 FROM node:20
 
 WORKDIR /app
 
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3 \
-    make \
-    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 
-# ✅ Install ALL deps (IMPORTANT)
-RUN npm ci
+# 🔥 Force Express 4 (to fix the * wildcard PathError)
+RUN npm ci && \
+    npm install express@4
 
+# Copy built application
 COPY --from=builder /app/dist ./dist
 
 RUN mkdir -p /workspace
 
-# ✅ Explicit dev environment
+# ✅ Keep as development as you requested
 ENV NODE_ENV=development
 ENV PORT=8080
 ENV WORKSPACE_DIR=/workspace
-
-# ✅ Safety: always include dev deps
-RUN npm config set include=dev true
 
 EXPOSE 8080
 

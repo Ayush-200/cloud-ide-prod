@@ -1,94 +1,92 @@
-import express from 'express';
-import httpProxy from 'http-proxy'; 
-import { getContainerIp } from './resolver.js';
-import { IncomingMessage, ServerResponse } from 'node:http';
-const app = express();
-const PORT = process.env.PORT;
+import { getContainerIp } from "./resolver";
+import * as http from "http";
+import { IncomingMessage, ServerResponse } from "http";
+import { Socket } from "net";
+import httpProxy from "http-proxy";
 
 const proxy = httpProxy.createProxyServer({});
 
-proxy.on("error", ((err: Error, req: IncomingMessage, res: ServerResponse) => {
-    console.error("error occurred in proxy", err.message);
 
-    if (res && !res.headersSent) {
-      res.writeHead(502, { "Content-Type": "text/plain" });
-      res.end("Bad gateway");
+
+function parseHost(host: string) {
+  // Remove port if present
+  const cleanHost = host.split(":")[0];
+
+  // Example:
+  // 5173-kqFxCo6.13.232.37.129.nip.io
+  const subdomain = cleanHost.split(".")[0];
+
+  const [port, workspaceId] = subdomain.split("-");
+
+  return {
+    port,
+    workspaceId,
+  };
+}
+
+const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  try {
+    const host = req.headers.host;
+
+    if (!host) {
+      res.writeHead(400);
+      return res.end("Missing Host header");
     }
-  }) as any
-);
 
-app.use(async (req, res) => {
-    try{
-        const url = req.url;
-        
-        if(!url){
-            console.error('invalid host url sent');
-            return;
-        }
-        const parts = url?.split('/').filter(Boolean);
-        const workspaceId = parts[0];
-        const port = parts[1];
+    const { port, workspaceId } = parseHost(host);
 
-        if(!workspaceId || !port){
-            return res.status(404).json({message:"workspace id or port not found"});
-        }
-        
-        const containerIp = await getContainerIp(workspaceId);
-
-        if (!containerIp) {
-            return res.status(404).send("Workspace not found");
-        }
-
-        const target = `http://${containerIp}:${port}`;
-        req.url = url.replace(`/${workspaceId}/${port}`, '') || '/';
-
-        proxy.web(req, res, {
-            target: target, 
-            changeOrigin: true
-        } )
-
-
+    if (!port || !workspaceId) {
+      res.writeHead(400);
+      return res.end("Invalid subdomain format");
     }
-    catch(error){
-        res.status(500).json({message: "error occured in app in reverse proxy"});
+
+    const targetIP = await getContainerIp(workspaceId);
+
+    if (!targetIP) {
+      res.writeHead(404);
+      return res.end("Workspace not found");
     }
-})
 
-const server = app.listen(PORT, ()=> {
-    console.log(`proxy server is running on port ${PORT}`);
-})
+    const target = `http://${targetIP}:${port}`;
 
-server.on("upgrade", async (req, socket, head) => {
-    try{
-        const url = req.url || "/";
-       
-        if(!url){
-            console.error("invalid url");
-            return;
-        }
+    console.log(`Routing → ${host} → ${target}${req.url}`);
 
-        const parts = url?.split('/').filter(Boolean);
-        const workspaceId = parts[0];
-        const port = parts[1];
+    proxy.web(req, res, {
+      target,
+      changeOrigin: true,
+    });
 
-        if (!workspaceId || !port) {
-            socket.destroy();
-            return;
-        }
+  } catch (err) {
+    console.error(err);
+    res.writeHead(500);
+    res.end("Proxy error");
+  }
+});
 
-        const containerIp = await getContainerIp(workspaceId);
-        if(!containerIp){
-            socket.destroy();
-            return;
-        }
-        req.url = url.replace(`/${workspaceId}/${port}`, '') || '/';
+server.listen(3001, "0.0.0.0", () => {
+  console.log("Reverse proxy running on port 3001");
+});
 
-        proxy.ws(req, socket, head, {
-            target: `http://${containerIp}:${port}`
-        });
-
-        
-    }catch(err){
-        socket.destroy();
+server.on("upgrade", async (req: IncomingMessage, socket: Socket, head: Buffer) => {
+  try {
+    const host = req.headers.host;
+    
+    if (!host) {
+      socket.destroy();
+      return;
     }
-})
+    
+    const { port, workspaceId } = parseHost(host);
+
+    const targetIP = await getContainerIp(workspaceId);
+    const target = `ws://${targetIP}:${port}`;
+
+    proxy.ws(req, socket, head, {
+      target,
+      changeOrigin: true,
+    });
+  } catch (err) {
+    console.error('WebSocket upgrade error:', err);
+    socket.destroy();
+  }
+});

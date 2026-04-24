@@ -15,7 +15,7 @@ const getWatchRoot = (): string => {
   const projectName = process.env.PROJECT_NAME;
   
   if (userId && projectName) {
-    return path.resolve(`/workspace/${userId}`);
+    return path.resolve(`/workspace/${userId}/${projectName}`);
   }
   
   // Fallback to /workspace root
